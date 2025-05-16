@@ -52,9 +52,7 @@ class WebSocketManager:
             if section_id not in self.feedback_events:
                 self.feedback_events[section_id] = asyncio.Event()
             
-            
             await self.feedback_events[section_id].wait()
-            
             
             feedback = self.pending_feedback.get(section_id)
             if section_id in self.pending_feedback:
@@ -70,16 +68,13 @@ class WebSocketManager:
         
         self.pending_feedback[section_id] = feedback_data
 
-        
         if section_id in self.feedback_events:
             print(f"Processing feedback event for section {section_id}")
             self.feedback_events[section_id].set()
         else:
-            
             print(f"Creating new feedback event for section {section_id}")
             self.feedback_events[section_id] = asyncio.Event()
             self.feedback_events[section_id].set()
-
 
 ws_manager = WebSocketManager()
 
@@ -88,7 +83,6 @@ def stream_to_websocket(document_id: str, section_id: str, section_name: str, co
     try:
         import asyncio
         loop = None
-        
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -149,7 +143,7 @@ def wait_for_feedback_from_ws(section_id: str, timeout: int = 30) -> Optional[Di
                     del ws_manager.pending_feedback[section_id]
                 return feedback
         
-        if loop.is_running():    
+        if loop.is_running():
             try:
                 future = asyncio.run_coroutine_threadsafe(
                     ws_manager.receive_feedback(document_id, section_id),

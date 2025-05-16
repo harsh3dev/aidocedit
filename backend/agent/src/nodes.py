@@ -207,17 +207,18 @@ def feedback_waiter_node(state: AgentState, config: RunnableConfig) -> Command[L
     """
     if "current_section_id" not in state:
         print("Missing current_section_id in state during feedback wait")
-        dummy_feedback = {"feedback_type": "continue", "edited_content": None}
-        return Command(update={"feedback": dummy_feedback}, goto="update")
+        raise ValueError("Missing current_section_id in state")
         
     try:
         feedback = wait_for_feedback_from_ws(section_id=state["current_section_id"])
+        if feedback["feedback_type"] == "end":
+            print("Feedback type is 'end', ending workflow")
+            return Command(update={"completed": True, "feedback": feedback}, goto="update")
         print(f"Received feedback for section {state['current_section_id']}: {feedback}")
         return Command(update={"feedback": feedback}, goto="update")
     except Exception as e:
         print(f"Error waiting for feedback: {str(e)}")
-        dummy_feedback = {"feedback_type": "continue", "edited_content": None}
-        return Command(update={"feedback": dummy_feedback}, goto="update")
+        raise e
 
 
 
@@ -256,6 +257,15 @@ def flow_controller_node(state: AgentState, config: RunnableConfig) -> Command:
     """
     last_feedback = state.get("last_feedback_type", "continue")
     
+    if last_feedback == "end" or state.get("completed", False):
+        print("Ending workflow based on 'end' feedback or completed state")
+        final_content = []
+        if "sections" in state and isinstance(state["sections"], list):
+            for section in state["sections"]:
+                if isinstance(section, dict) and "content" in section:
+                    final_content.append(section["content"])
+        return Command(update={"completed": True, "final_content": final_content}, goto="end")
+    
     if last_feedback == "regenerate":
         return Command(goto="generate")
 
@@ -268,6 +278,7 @@ def flow_controller_node(state: AgentState, config: RunnableConfig) -> Command:
         return Command(update={"current_section_index": next_index}, goto="generate")
     else:
         print("All sections completed, ending workflow")
+        # Return a final state with all the content
         final_content = []
         if "sections" in state and isinstance(state["sections"], list):
             for section in state["sections"]:
