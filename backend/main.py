@@ -1,18 +1,18 @@
 import uuid
 import traceback
 import asyncio
+import json
 from fastapi import FastAPI, WebSocket, Depends, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db, engine, Base
 from models import Document
 from schemas import DocumentCreate
-from ws_manager import ws_manager
+from ws_manager import ws_manager, send_document_complete
 from agent.src.graph import document_graph
 from langchain_core.runnables import RunnableConfig
 from agent.src.state import AgentState
-
-import json
+from templates import TEMPLATE_SECTIONS
 
 app = FastAPI()
 
@@ -28,6 +28,10 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+@app.get("/templates/")
+async def get_templates():
+    return {"templates": list(TEMPLATE_SECTIONS.keys())}
+
 @app.post("/generate/")
 async def create_document(data: DocumentCreate, db: AsyncSession = Depends(get_db)):
     new_doc = Document(
@@ -41,18 +45,29 @@ async def create_document(data: DocumentCreate, db: AsyncSession = Depends(get_d
     return {"document_id": new_doc.id}
 
 @app.websocket("/ws/{document_id}")
-async def websocket_endpoint(websocket: WebSocket, document_id: str):
+async def websocket_endpoint(websocket: WebSocket, document_id: str, db: AsyncSession = Depends(get_db)):
     await ws_manager.connect(document_id, websocket)
 
     try:
+        from sqlalchemy import select
+        doc_id_int = int(document_id)
+
+        stmt = select(Document).where(Document.id == doc_id_int)
+        result = await db.execute(stmt)
+        document = result.scalars().first()
+        
+        if not document:
+            await websocket.send_json({"type": "error", "message": "Document not found"})
+            return
+            
+        user_query = document.user_query
+        selected_template = document.template_type
+        print(f"Using document from DB - query: {user_query}, template: {selected_template}")
         
         message = await websocket.receive_text()
         try:
             data = json.loads(message)
-            
-            user_query = data.get("query") or data.get("userQuery", "General Information Request")
-            selected_template = data.get("template_type") or data.get("selectedTemplate", "general")
-            print(f"Received request - query: {user_query}, template: {selected_template}")
+            print(f"Received init message: {data}")
         except json.JSONDecodeError:
             await websocket.send_text("Invalid initial JSON payload")
             return
@@ -135,6 +150,10 @@ def stream_graph(initial_state: AgentState, config: RunnableConfig):
 
         for event in document_graph.stream(initial_state, config=config):
             print("[Graph Event]", event)
+            
+        document_id = initial_state.get("document_id")
+        if document_id:
+            send_document_complete(document_id)
     except Exception as e:
         print(f"ERROR: LangGraph execution failed: {str(e)}")
         traceback.print_exc()

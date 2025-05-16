@@ -10,7 +10,7 @@ from .state import AgentState
 from .configuration import Configuration
 from .utils import init_llm
 from models import save_section_to_db, get_next_section, update_section_feedback
-from ws_manager import stream_to_websocket, wait_for_feedback_from_ws
+from ws_manager import stream_to_websocket, wait_for_feedback_from_ws, send_document_complete, send_stream_end
 from .prompts import MAIN_SYSTEM_PROMPT
 from templates import TEMPLATE_SECTIONS
 import asyncio
@@ -187,11 +187,19 @@ def websocket_streamer_node(state: AgentState, config: RunnableConfig) -> Comman
         
         document_id = state["document_id"]
         
+        section_name = state["section_names"][state["current_section_index"]]
+        is_editable = True
+        
+        if any(keyword in section_name.lower() for keyword in 
+              ["code", "configuration", "installation", "setup", "technical", "api reference"]):
+            is_editable = False
+            
         stream_to_websocket(
             document_id=document_id,
             section_id=state["current_section_id"],
-            section_name=state["section_names"][state["current_section_index"]],
-            content_html=content_html
+            section_name=section_name,
+            content_html=content_html,
+            is_editable=is_editable
         )
         print(f"Successfully streamed section {state['section_names'][state['current_section_index']]} to WebSocket")
     except Exception as e:
@@ -276,13 +284,20 @@ def flow_controller_node(state: AgentState, config: RunnableConfig) -> Command:
         next_index = state["current_section_index"] + 1
         print(f"Moving to next section index: {next_index}")
         return Command(update={"current_section_index": next_index}, goto="generate")
-    else:
-        print("All sections completed, ending workflow")
-        # Return a final state with all the content
-        final_content = []
-        if "sections" in state and isinstance(state["sections"], list):
-            for section in state["sections"]:
-                if isinstance(section, dict) and "content" in section:
-                    final_content.append(section["content"])
-                    
-        return Command(update={"completed": True, "final_content": final_content}, goto="end")
+    
+    print("All sections completed, ending workflow")
+    final_content = []
+    if "sections" in state and isinstance(state["sections"], list):
+        for section in state["sections"]:
+            if isinstance(section, dict) and "content" in section:
+                final_content.append(section["content"])
+    
+    if "document_id" in state:
+        try:
+            send_stream_end(state["document_id"])
+            send_document_complete(state["document_id"])
+            print(f"Sent completion messages for document {state['document_id']}")
+        except Exception as e:
+            print(f"Error sending completion messages: {str(e)}")
+                
+    return Command(update={"completed": True, "final_content": final_content}, goto="end")

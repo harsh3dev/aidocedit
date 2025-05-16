@@ -33,10 +33,11 @@ builder.add_edge("update", "next")
 builder.add_conditional_edges(
     "next",
     lambda state: (
-        END if state.get("completed", False) or state.get("last_feedback_type") == "end"
-        else "generate" if state.get("last_feedback_type") == "regenerate" and not state.get("completed", False)
-        else "generate" if not state.get("completed", False) and "current_section_index" in state and "section_names" in state and state["current_section_index"] + 1 < len(state["section_names"])
-        else END
+        END if state.get("completed", False) else
+        END if state.get("last_feedback_type") == "end" else
+        "generate" if state.get("last_feedback_type") == "regenerate" else
+        "generate" if "current_section_index" in state and "section_names" in state and state["current_section_index"] + 1 < len(state["section_names"]) else
+        END 
     )
 )
 

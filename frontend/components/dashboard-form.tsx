@@ -1,23 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FormData, FormState, Template } from "@/lib/types";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { createDocument, fetchTemplates } from "@/lib/api";
 
 export function DashboardForm() {
+  const [availableTemplates, setAvailableTemplates] = useState<Template[]>(["Technical Blog", "Documentation", "Case Study"]);
   const [formData, setFormData] = useState<FormData>({
     userQuery: "",
-    selectedTemplate: "blog",
+    selectedTemplate: "Technical Blog",
   });
 
   const [formState, setFormState] = useState<FormState>({
     isLoading: false,
     errors: {},
   });
+  
+  useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const data = await fetchTemplates();
+        if (data.templates && data.templates.length > 0) {
+          setAvailableTemplates(data.templates);
+          setFormData(prev => ({
+            ...prev,
+            selectedTemplate: data.templates[0]
+          }));
+        }
+      } catch (error) {
+        console.error("Error loading templates:", error);
+      }
+    }
+    
+    loadTemplates();
+  }, []);
 
   const validateForm = (): boolean => {
     const errors: FormState["errors"] = {};
@@ -47,35 +68,21 @@ export function DashboardForm() {
     });
 
     try {
-
-      const url = "http://localhost:8000/generate/";
-
-      const response = await fetch(`${url}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query: formData.userQuery,
-          template_type: formData.selectedTemplate,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      const data = await response.json();
-      console.log("Response data:", data);
-      
-      console.log({
+      const data = await createDocument({
         userQuery: formData.userQuery,
         selectedTemplate: formData.selectedTemplate,
       });
-
+      
+      console.log("Response data:", data);
+      
       setFormData({
         userQuery: "",
-        selectedTemplate: "blog",
+        selectedTemplate: availableTemplates[0],
       });
+      
+      if (data.document_id) {
+        window.location.href = `/edit/${data.document_id}`;
+      }
     } catch (error) {
       console.error("Error submitting form:", error);
       setFormState((prev) => ({
@@ -145,8 +152,9 @@ export function DashboardForm() {
             <SelectValue placeholder="Select a template" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="blog">Blog</SelectItem>
-            <SelectItem value="documentation">Documentation</SelectItem>
+            {availableTemplates.map((template) => (
+              <SelectItem key={template} value={template}>{template}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FormField>
