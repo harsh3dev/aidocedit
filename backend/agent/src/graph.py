@@ -36,8 +36,11 @@ builder.add_conditional_edges(
         END if state.get("completed", False) else
         END if state.get("last_feedback_type") == "end" else
         "generate" if state.get("last_feedback_type") == "regenerate" else
-        "generate" if "current_section_index" in state and "section_names" in state and state["current_section_index"] + 1 < len(state["section_names"]) else
-        END 
+        "generate" if (state.get("last_feedback_type") == "continue" and 
+                      "current_section_index" in state and 
+                      "section_names" in state and 
+                      state["current_section_index"] + 1 < len(state["section_names"])) else
+        END
     )
 )
 

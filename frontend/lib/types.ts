@@ -18,6 +18,7 @@ export interface Section {
   id: string;
   name: string;
   html: string;
+  isEditable?: boolean;
 }
 
 export interface WebSocketMessage {
@@ -25,10 +26,19 @@ export interface WebSocketMessage {
   section_id?: string;
   section_name?: string;
   content?: string;
+  is_editable?: boolean;
 }
 
 export interface FeedbackMessage {
   section_id: string;
   feedback_type: 'continue' | 'edit';
   edited_content?: string;
+}
+
+export interface Document {
+  id: string;
+  user_query: string;
+  template_type: Template;
+  content_generated: boolean;
+  sections: Section[];
 }

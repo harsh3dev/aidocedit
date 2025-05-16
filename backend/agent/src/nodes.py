@@ -12,7 +12,7 @@ from .utils import init_llm
 from models import save_section_to_db, get_next_section, update_section_feedback
 from ws_manager import stream_to_websocket, wait_for_feedback_from_ws, send_document_complete, send_stream_end
 from .prompts import MAIN_SYSTEM_PROMPT
-from templates import TEMPLATE_SECTIONS
+from templates import get_section_names, is_section_editable
 import asyncio
 import uuid
 
@@ -25,8 +25,8 @@ def section_planner_node(state: AgentState, config: RunnableConfig) -> Command[L
     template = state.get("template_type", "")
     query = state.get("query", "General Information Document")
 
-    if template in TEMPLATE_SECTIONS:
-        section_names = TEMPLATE_SECTIONS[template]
+    section_names = get_section_names(template)
+    if section_names:
         print(f"Using template sections: {section_names}")
     else:
         configurable = Configuration.from_runnable_config(config)
@@ -188,12 +188,11 @@ def websocket_streamer_node(state: AgentState, config: RunnableConfig) -> Comman
         document_id = state["document_id"]
         
         section_name = state["section_names"][state["current_section_index"]]
-        is_editable = True
         
-        if any(keyword in section_name.lower() for keyword in 
-              ["code", "configuration", "installation", "setup", "technical", "api reference"]):
-            is_editable = False
-            
+        # Get editability from template configuration
+        template_type = state.get("template_type", "")
+        is_editable = is_section_editable(template_type, section_name)
+        
         stream_to_websocket(
             document_id=document_id,
             section_id=state["current_section_id"],

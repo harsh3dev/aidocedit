@@ -8,12 +8,13 @@ import EditableSection from '@/components/EditableSection';
 import { ArrowDown, CheckCircle2, PencilLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { websocketService } from '@/lib/websocketService';
+import { isSectionEditable } from '@/lib/templateConfig';
 
 export default function DocumentEditor() {
   const params = useParams();
   const docId = params?.docId as string;
   
-  const [sections, setSections] = useState<{ id: string; name: string; html: string; isEditable?: boolean }[]>([]);
+  const [sections, setSections] = useState<{ id: string; name: string; html: string; is_editable?: boolean }[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [editableMap, setEditableMap] = useState<Record<string, boolean>>({});
@@ -21,14 +22,24 @@ export default function DocumentEditor() {
   const [streamEnded, setStreamEnded] = useState(false);
   const [processingSection, setProcessingSection] = useState<string | null>(null);
   const [documentComplete, setDocumentComplete] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("Technical Blog");
 
   const handleSectionContent = useCallback((data: any) => {
     if (data.type === 'section_content' && data.section_id && data.section_name && data.content) {
+      if (data.template) {
+        setSelectedTemplate(data.template);
+      }
+      
+      const isExplicitlyEditable = data.is_editable !== undefined;
+      const sectionEditability = isExplicitlyEditable
+        ? data.is_editable
+        : isSectionEditable(selectedTemplate, data.section_name);
+      
       const newSection = {
         id: data.section_id,
         name: data.section_name,
         html: data.content,
-        isEditable: data.is_editable !== undefined ? data.is_editable : true,
+        is_editable: sectionEditability,
       };
       
       setSections((prev) => [...prev, newSection]);
@@ -49,8 +60,10 @@ export default function DocumentEditor() {
       setStreamEnded(true);
       setIsComplete(true);
       setProcessingSection(null);
+    } else if (data.type === 'template_info' && data.template) {
+      setSelectedTemplate(data.template);
     }
-  }, []);
+  }, [selectedTemplate]);
 
   const handleStreamEnd = useCallback(() => {
     setStreamEnded(true);
@@ -71,6 +84,12 @@ export default function DocumentEditor() {
       setProcessingSection(null);
     });
     
+    websocketService.addEventListener('template_info', (data) => {
+      if (data.template) {
+        setSelectedTemplate(data.template);
+      }
+    });
+    
     websocketService.sendMessage({
       type: 'init',
       document_id: docId,
@@ -81,6 +100,7 @@ export default function DocumentEditor() {
       websocketService.removeEventListener('section_content', handleSectionContent);
       websocketService.removeEventListener('stream_end', handleStreamEnd);
       websocketService.removeEventListener('document_complete', () => {});
+      websocketService.removeEventListener('template_info', () => {});
     };
   }, [docId, handleSectionContent, handleStreamEnd]);
   
@@ -149,9 +169,9 @@ export default function DocumentEditor() {
             key={`${section.id}-${index}`}
             sectionName={section.name}
             content={section.html}
-            editable={!!section.isEditable && !!editableMap[section.id]}
+            editable={!!section.is_editable && !!editableMap[section.id]}
             onUpdate={(html) => handleSectionUpdate(index, html)}
-            className={index === currentIndex - 1 ? "ring-2 ring-offset-1 ring-blue-200" : ""}
+            className={index === currentIndex - 1 ? "" : ""}
           />
         ))}
       </div>
@@ -170,7 +190,7 @@ export default function DocumentEditor() {
               {isLoading ? 'Loading...' : processingSection !== null ? 'Processing...' : 'Continue'}
             </Button>
             
-            {sections[currentIndex - 1]?.isEditable && (
+            {sections[currentIndex - 1]?.is_editable && (
               <Button
                 onClick={handleMakeChanges}
                 variant="outline"

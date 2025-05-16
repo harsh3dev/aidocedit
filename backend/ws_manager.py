@@ -1,5 +1,7 @@
 import asyncio
 import json
+import json
+import asyncio
 from typing import Dict, Optional
 from fastapi import WebSocket
 
@@ -136,54 +138,38 @@ def stream_to_websocket(document_id: str, section_id: str, section_name: str, co
 def send_document_complete(document_id: str):
     """Synchronous wrapper for sending document completion message"""
     try:
-        loop = None
+        from models import mark_document_content_generated
+        # Mark the document as having generated content
+        mark_document_content_generated(document_id)
+        
+        # Always create a new loop to avoid loop attachment issues
+        new_loop = asyncio.new_event_loop()
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                ws_manager.send_document_complete(document_id),
-                loop
-            )
-
-            try:
-                future.result(timeout=5.0)
-            except asyncio.TimeoutError:
-                print(f"WebSocket document complete timed out for document {document_id}")
-            except Exception as e:
-                print(f"Error in WebSocket document complete: {str(e)}")
-        else:
-            loop.run_until_complete(ws_manager.send_document_complete(document_id))
+            # Run in the isolated loop
+            new_loop.run_until_complete(ws_manager.send_document_complete(document_id))
+            print(f"Sent document_complete message for document {document_id}")
+        except Exception as e:
+            print(f"Error in WebSocket document complete: {str(e)}")
+        finally:
+            # Make sure to close the loop to free resources
+            new_loop.close()
     except Exception as e:
         print(f"Error in send_document_complete: {str(e)}")
 
 def send_stream_end(document_id: str):
     """Synchronous wrapper for sending stream end message"""
     try:
-        loop = None
+        # Always create a new loop to avoid loop attachment issues
+        new_loop = asyncio.new_event_loop()
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                ws_manager.send_stream_end(document_id),
-                loop
-            )
-
-            try:
-                future.result(timeout=5.0)
-            except asyncio.TimeoutError:
-                print(f"WebSocket stream end timed out for document {document_id}")
-            except Exception as e:
-                print(f"Error in WebSocket stream end: {str(e)}")
-        else:
-            loop.run_until_complete(ws_manager.send_stream_end(document_id))
+            # Run in the isolated loop
+            new_loop.run_until_complete(ws_manager.send_stream_end(document_id))
+            print(f"Sent stream_end message for document {document_id}")
+        except Exception as e:
+            print(f"Error in WebSocket stream end: {str(e)}")
+        finally:
+            # Make sure to close the loop to free resources
+            new_loop.close()
     except Exception as e:
         print(f"Error in send_stream_end: {str(e)}")
 

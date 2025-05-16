@@ -3,6 +3,8 @@ import React, { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { cn } from '@/lib/utils';
+import '@/components/tiptap-node/code-block-node/code-block-node.scss'
+
 
 type EditableSectionProps = {
   sectionName: string;
@@ -46,7 +48,7 @@ export default function EditableSection({
     <div 
       className={cn(
         "my-4 rounded-lg transition-all duration-200",
-        editable ? "border-2 border-blue-400 shadow-md" : "border border-gray-200",
+        editable ? "" : "",
         className
       )}
     >
@@ -60,7 +62,7 @@ export default function EditableSection({
               : "bg-gray-100 text-gray-600"
           )}
         >
-          {editable ? "Editing" : "Read-only"}
+          {editable ? "Editing" : ""}
         </span>
       </div>
       
