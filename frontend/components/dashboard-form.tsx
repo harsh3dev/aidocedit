@@ -47,21 +47,37 @@ export function DashboardForm() {
     });
 
     try {
-      // Simulate API call with setTimeout
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const url = "http://localhost:8000/generate/";
+
+      const response = await fetch(`${url}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userQuery: formData.userQuery,
+          selectedTemplate: formData.selectedTemplate,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+      const data = await response.json();
+      console.log("Response data:", data);
       
-      // Log the form data to console
       console.log({
         userQuery: formData.userQuery,
         selectedTemplate: formData.selectedTemplate,
       });
 
-      // Reset form after successful submission
       setFormData({
         userQuery: "",
         selectedTemplate: "blog",
       });
     } catch (error) {
+      console.error("Error submitting form:", error);
       setFormState((prev) => ({
         ...prev,
         errors: {
