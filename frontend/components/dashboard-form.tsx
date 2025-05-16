@@ -56,8 +56,8 @@ export function DashboardForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userQuery: formData.userQuery,
-          selectedTemplate: formData.selectedTemplate,
+          query: formData.userQuery,
+          template_type: formData.selectedTemplate,
         }),
       });
 
